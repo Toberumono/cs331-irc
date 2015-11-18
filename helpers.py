@@ -27,12 +27,12 @@ class ThreeStateLogger():
 class TestableRange():
 	def getRangeTest(self, inclusive):
 		inclusive = inclusive.strip().lower()
-		possibles = {
+		ranges = {
 				"neither" : lambda x: (self.getLowerBound() < x and x < self.getUpperBound()) and (x - self.getLowerBound()) % self.getStep() == 0,
 				"lower" : lambda x: (self.getLowerBound() <= x and x < self.getUpperBound()) and (x - self.getLowerBound()) % self.getStep() == 0,
 				"upper" : lambda x: (self.getLowerBound() < x and x <= self.getUpperBound()) and (x - self.getLowerBound()) % self.getStep() == 0
 			}
-		return (possibles[inclusive], inclusive) if inclusive in possibles else \
+		return (ranges[inclusive], inclusive) if inclusive in ranges else \
 			(lambda x: (self.getLowerBound() <= x and x <= self.getUpperBound()) and (x - self.getLowerBound()) % self.getStep() == 0, 'both')
 
 	'''
