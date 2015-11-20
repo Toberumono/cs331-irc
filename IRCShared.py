@@ -39,7 +39,7 @@ class ConditionalDict(dict):
 			raise ValueError("(" + str(key) + ", " + str(value) + ") violates the constraint on the dictionary")
 		super().__setitem__(key, value)
 
-class IRCCommand():
+class IRCMessage():
 	def __init__(self, raw_message, sever=None):
 		self.server, self.params, self.source, self.command = server, None, None, None
 		if raw_message[0] == ':':
