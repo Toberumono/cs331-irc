@@ -1,6 +1,6 @@
 import re
 
-regexes = {'special' : r'[\[\]\{\}\\`_^|]', 'shortname' : }
+regexes = {'special' : r'[\[\]\{\}\\`_^|]'}
 patterns = {
 	'user' : re.compile('^[^\r\n\0 @]+$'),
 	'nickname' : re.compile('([a-zA-Z]|' + regexes['special'] + ')([a-zA-Z0-9]|-|' + regexes['special'] + ')*')
