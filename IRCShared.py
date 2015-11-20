@@ -40,7 +40,7 @@ class ConditionalDict(dict):
 		super().__setitem__(key, value)
 
 class IRCCommand():
-	def __init__(self, raw_message, sever):
+	def __init__(self, raw_message, sever=None):
 		self.server, self.params, self.source, self.command = server, None, None, None
 		if raw_message[0] == ':':
 			idx = raw_message.find(' ')
