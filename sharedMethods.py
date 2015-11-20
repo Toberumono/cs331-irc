@@ -4,7 +4,7 @@ from helpers import *
 
 debugger = ThreeStateLogger(0)
 default = {
-	'timeout' : 5.0,
+	'timeout' : 20.0,
 	'format' : 'ascii',
 	'buffersize' : 1024,
 	'executable' : subprocess.check_output("which bash", shell=True, universal_newlines=True).strip(), #This just gets the location of bash
