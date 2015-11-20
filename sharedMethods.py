@@ -10,7 +10,6 @@ default = {
 	'executable' : subprocess.check_output("which bash", shell=True, universal_newlines=True).strip(), #This just gets the location of bash
 	'editor' : os.environ.get('EDITOR','vim')
 }
-regexes = {'special' : r'[\[\]\{\}\\`_^|]'}
 
 def setVerbosity(verbosity):
 	debugger = ThreeStateLogger(verbosity)
@@ -67,7 +66,7 @@ NOTE: The timeout resets after each read, so it is inadvisable to use this funct
 NOTE: The input is run through decoder prior to being passed to termination_test.
 This function will timeout if there is no data available after the given timeout time.
 '''
-def getSocketResponse(sock, buffersize=default['buffersize'], timeout=default['timeout'], decoder=decoder, termination_test=lambda x: x.endswith("\n.")):
+def getSocketResponse(sock, buffersize=default['buffersize'], timeout=default['timeout'], decoder=decoder, termination_test=lambda x: x.endswith("\r") or x.endswith("\n")):
 	output = ""
 	while not termination_test(output):
 		data = timeoutRecv(sock=sock, buffersize=buffersize, timeout=timeout)
