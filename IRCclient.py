@@ -7,6 +7,20 @@ import sys, socket, re, platform
 def receiveMessage(message):
     print message
 
+def sendNickUser(sock, message):
+    while message[0:5] != "NICK ":
+        message = input("Please enter your nickname (NICK <nick>).")
+    sock.send(message.encode("ascii"))
+    reply = sock.recv(1024).decode("ascii")
+    recieveMessage(reply)
+
+    while (message[0:5] != "USER " and (reply not in userFail)):
+        message = input("Please enter your username USER <user> <mode> * <realname>.")
+        reply = serverSock.recv(1024).decode("ascii")
+        recieveMessage(reply)
+    serverSock.send(message.encode("ascii"))
+    receiveMessage(serverSock.recv(1024))
+
 def serverConnect(server, port):
     server = int(server)
     port = int(port)
@@ -17,32 +31,15 @@ def serverConnect(server, port):
         
         passwordSet = False
         message = ""
-        reply = "ERR_NEEDMOREPARAMS"
-        passwordFail = ["ERR_NEEDMOREPARAMS", "ERR_ALREADYREGISTRED"]
-        nickFail = ["ERR_NONICKNAMEGIVEN", "ERR_ERRONEUSNICKNAME", "ERR_NICKNAMEINUSE", "ERR_NICKCOLLISION", "ERR_UNAVAILRESOURCE", "ERR_RESTRICTED"]
-        userFail = ["ERR_NEEDMOREPARAMS", "ERR_ALREADYREGISTRED"]
-        while (reply not in userFail) and (reply not in nickFail):
-            while (message[0:5] != "NICK " and message[0:5] != "PASS ") and (reply not in passwordFail)):
-                message = input("Please enter either a password (PASS <pass>), or a nickname (NICK <nick>).")
+        while (message[0:5] != "NICK " and message[0:5] != "PASS ") and (reply not in passwordFail)):
+            message = input("Please enter either a password (PASS <pass>), or a nickname (NICK <nick>).")
 
-            serverSock.send(message.encode("ascii"))
-            reply = serverSock.recv(1024).decode("ascii")
-            recieveMessage(reply)
+        serverSock.send(message.encode("ascii"))
+        reply = serverSock.recv(1024).decode("ascii")
+        recieveMessage(reply)
         if message[0:5] == "PASS ":
             passwordSet = True
 
-            while message[0:5] != "NICK ":
-                message = input("Please enter your nickname (NICK <nick>).")
-            serverSock.send(message.encode("ascii"))
-            reply = serverSock.recv(1024).decode("ascii")
-            recieveMessage(reply)
-
-            while (message[0:5] != "USER " and (reply not in userFail)):
-                message = input("Please enter your username USER <user> <mode> * <realname>.")
-                reply = serverSock.recv(1024).decode("ascii")
-                recieveMessage(reply
-            serverSock.send(message.encode("ascii"))
-            receiveMessage(serverSock.recv(1024))
             
         
         doneTalking = False
@@ -54,16 +51,7 @@ def serverConnect(server, port):
                 doneTalking = True
                 
             serverSock.send(message.encode("ascii"))
-            
             receiveMessage(message)
-        print ("Sent message; waiting for reply")
-        printout = ""
-        while not printout.endswith("\r\n"):
-            data = serverSock.recv(1024)
-            if not len(data):
-                break
-            printout += data.decode("ascii")
-        printout = printout[0:len(printout) - 2]
 
         serverSock.close()
     except ConnectionRefusedError:
@@ -86,3 +74,4 @@ def main():
             continue
 
         serverConnect(server, port)
+    exit()
