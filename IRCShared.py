@@ -9,7 +9,17 @@ class IRCChannelException(IRCException):
 	def __init__(self, message="An error relating to an IRC Channel occurred"):
 		super().__init__(message)
 
-class IRCChannelDict(dict):
+class ConditionalDict(dict):
+	def __init__(self, source=dict(), constraint=lambda key, value: True):
+		super().__init__(source)
+		self.__constraint = constraint
+
+	def __setitem__(self, key, value):
+		if not self.__constraint(key, value):
+			raise ValueError("(" + str(key) + ", " + str(value) + ") violates the constraint on the dictionary")
+		super().__setitem__(key, value)
+
+class IRCChannelDict(ConditionalDict):
 	def __init__(self, source=dict(), max_channel_length=50):
 		def constraint():
 			if type(key) != str:
@@ -32,5 +42,5 @@ class IRCChannelDict(dict):
 	max_channel_length = property(**max_channel_length())
 
 
-class IRCUserDict(dict):
+class IRCUserDict(ConditionalDict):
 	def __init__(self, source=dict()):

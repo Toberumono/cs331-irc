@@ -80,13 +80,3 @@ class TestableRange():
 
 	def getTest(self):
 		return self.test
-
-class ConditionalDict(dict):
-	def __init__(self, source=dict(), constraint=lambda key, value: True):
-		super().__init__(source)
-		self.__constraint = constraint
-
-	def __setitem__(self, key, value):
-		if not self.__constraint(key, value):
-			raise ValueError("(" + str(key) + ", " + str(value) + ") violates the constraint on the dictionary")
-		super().__setitem__(key, value)

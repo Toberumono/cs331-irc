@@ -10,7 +10,7 @@ default = {
 	'executable' : subprocess.check_output("which bash", shell=True, universal_newlines=True).strip(), #This just gets the location of bash
 	'editor' : os.environ.get('EDITOR','vim')
 }
-regexes = {'special' : r'[\[\]\{\}\\`_^|]'
+regexes = {'special' : r'[\[\]\{\}\\`_^|]'}
 
 def setVerbosity(verbosity):
 	debugger = ThreeStateLogger(verbosity)
