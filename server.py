@@ -60,7 +60,7 @@ class Server(helpers.ThreeStateLogger):
 				clientSock, clientAddr = self.socket.accept()
 				clientSock.settimeout(None) #Disable the socket's internal timeout system.
 				#Spin off a new thread to handle this client
-				cli = threading.Thread(target=__serverLoop, args=(self, self.socket_thread, clientSock, clientAddr), daemon=True)
+				cli = threading.Thread(target=Server.__serverLoop, args=(self, self.socket_thread, clientSock, clientAddr), daemon=True)
 				cli.start()
 			except socket.timeout: pass #The socket times out every second, so we have to catch this.
 
@@ -150,13 +150,13 @@ class Server(helpers.ThreeStateLogger):
 		return locals()
 	running = property(**running())
 
-def __serverLoop(server, socket_thread, clientSock, clientAddr):
-	try:
-		while server.isRunning() and socket_thread(server, clientSock, clientAddr) == None: continue
-	except Exception as e:
-		server.log(e, "Client:", clientAddr, "Request:", message, level='error')
-	finally:
-		sharedMethods.socketCloser(clientSock)
+	def __serverLoop(server, socket_thread, clientSock, clientAddr):
+		try:
+			while server.isRunning() and socket_thread(server, clientSock, clientAddr) == None: continue
+		except Exception as e:
+			server.log(e, "Client:", clientAddr, level='error')
+		finally:
+			sharedMethods.socketCloser(clientSock)
 
 def getArgumentParser():
 	parser = argparse.ArgumentParser(description='A simple IRC server.', formatter_class=argparse.RawTextHelpFormatter)

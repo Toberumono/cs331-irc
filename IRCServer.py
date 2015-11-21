@@ -22,7 +22,7 @@ class IRCServer(Server):
 
 	def server_thread(self, clientSock, clientAddr):
 		sent_ping = False
-		log.log("Received connection from:", str(clientAddr) + ":" + str(clientSock), level='info')
+		self.log("Received connection from:", str(clientAddr) + ":" + str(clientSock), level='info')
 		try:
 			'''
 			Authentication phase.
@@ -70,9 +70,11 @@ class IRCServer(Server):
 							reply = reply + " " + errors[e.message][0]
 						clientSock.sendall(reply)
 		except IRCException as e:
+			self.log(e, level='error')
 			if type(e.message) == int: #Then this is an error code and should be sent to the client
-				pass
-
+				clientSock.sendall(sharedMethods.encoder(str(e.message)))
+		except Exception as e2:
+			print(e2)
 		finally:
 			return True
 
@@ -112,6 +114,12 @@ def __error(server, connection, message):
 __message_handlers['ERROR'] = __error
 
 def __privmsg(server, connection, message):
+	if len(message.params) < 1:
+		raise IRCException(message=411)
+	if len(message.params) < 2:
+		raise IRCException(message=412)
+	if message.source == None:
+		message.source = connection.name
 	for recip in message.params[0].split(','):
 		server.connections[recip].send_message(message)
 __message_handlers['PRIVMSG'] = __privmsg

@@ -1,6 +1,8 @@
+import sys
+
 class ThreeStateLogger():
 	def __init__(self, verbosity):
-		verbosity = (0 if verbosity < 0 else (3 if verbosity < 3 else verbosity)) if type(verbosity) != int else 0
+		verbosity = (0 if verbosity < 0 else (3 if verbosity > 3 else verbosity)) if type(verbosity) == int else 0
 		self.verbosity = verbosity
 		self.error = lambda *message: print("ERROR:", *message, file=sys.stderr) if self.verbosity > 0 else lambda *message: None
 		self.warning = lambda *message: print("WARNING:", *message, file=sys.stderr) if self.verbosity > 1 else lambda *message: None

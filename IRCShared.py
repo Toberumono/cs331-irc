@@ -8,6 +8,8 @@ patterns = {
 errors = {
 	402 : ('ERR_NOSUCHSERVER', 'No such server'),
 	409 : ('ERR_NOORIGIN', 'No origin specified'),
+	411 : ('ERR_NORECIPIENT', 'No recipient given'),
+	412 : ('ERR_NOTEXTTOSEND', 'No text to send'),
 	431 : ('ERR_NONICKNAMEGIVEN', 'No nickname given'),
 	432 : ('ERR_ERRONEUSNICKNAME', 'Erroneous nickname'),
 	433 : ('ERR_NICKNAMEINUSE', 'Nickname is already in use'),
@@ -16,20 +18,21 @@ errors = {
 }
 
 class IRCException(Exception):
-	def __init__(self, message="An IRC Error occurred"):
-		super().__init__(message)
+	def __init__(self, message="An IRC Error occurred", *args):
+		super().__init__(message, *args)
+		self.message = message
 
 class IRCServerException(IRCException):
-	def __init__(self, message="An error relating to an IRC Server occurred"):
-		super().__init__(message)
+	def __init__(self, message="An error relating to an IRC Server occurred", *args):
+		super().__init__(message, *args)
 
 class IRCChannelException(IRCException):
-	def __init__(self, message="An error relating to an IRC Channel occurred"):
-		super().__init__(message)
+	def __init__(self, message="An error relating to an IRC Channel occurred", *args):
+		super().__init__(message, *args)
 
 class IRCUserException(IRCException):
-	def __init__(self, message="An error relating to an IRC User occurred"):
-		super().__init__(message)
+	def __init__(self, message="An error relating to an IRC User occurred", *args):
+		super().__init__(message, *args)
 
 class ConditionalDict(dict):
 	def __init__(self, source=dict(), constraint=lambda key, value: True):
@@ -37,13 +40,13 @@ class ConditionalDict(dict):
 		self.__constraint = constraint
 
 	def __setitem__(self, key, value):
-		if not self.__constraint(key, value):
+		if not self.__constraint(self, key, value):
 			raise ValueError("(" + str(key) + ", " + str(value) + ") violates the constraint on the dictionary")
 		super().__setitem__(key, value)
 
 class IRCMessage():
-	def __init__(self, raw_message, sever=None):
-		self.raw_message = raw_message
+	def __init__(self, raw_message, server=None):
+		self.raw_message = raw_message.strip() + '\n'
 		self.server, self.params, self.source, self.command = server, None, None, None
 		if raw_message[0] == ':':
 			idx = raw_message.find(' ')
@@ -60,8 +63,7 @@ class IRCMessage():
 		if raw_message.find(':') >= 0:
 			last_comm = raw_message[raw_message.find(':') + 1:]
 			raw_message = raw_message[0:raw_message.find(':')]
-
-		args = re.finditer(r'("((?<!\\)")*"|[^ ]+)', raw_message)
+		args = re.finditer(r'("((?<!\\)")*"|[^ \r\n]+)', raw_message)
 		self.params = [par.group(0) for par in args]
 		while len(self.params) > 15: #Merge the trailing arguments into a single argument
 			self.params[len(self.params) - 2] = self.params[len(self.params) - 2] + " " + self.params.pop()
@@ -79,6 +81,7 @@ class IRCChannelDict(ConditionalDict):
 				raise IRCChannelException(key + " is not a valid IRC Channel name.  Channel names must start with either '&', '#', '+', or '!'")
 			if not re.match('^[&][^\r\n ,:]{1,' + str(max_channel_length - 1) + '}$', key):
 				raise IRCChannelException(key + " is not a valid IRC Channel name.  Channel names cannot contain CR, LF, ' ', ',', or ':'")
+			return True
 		super().__init__(source, constraint)
 		self._max_channel_length = max_channel_length
 
@@ -98,12 +101,14 @@ class IRCUserDict(ConditionalDict):
 				raise IRCUserException(str(key) + " is not a valid IRC Username.  Usernames must be strings")
 			if not patterns['user'].match(key):
 				raise IRCUserException(str(key) + " is not a valid IRC Username.  Usernames cannot contain CR, LF, ' ', or '@'")
+			return True
 		super().__init__(source, constraint)
 
 class IRCTarget(dict):
 	def __init__(self, sock, source=dict()):
 		super().__init__(source)
 		self.sock = sock
+		self.name = None
 
 	def send_message(self, message):
 		self.sock.sendall(sharedMethods.encoder(message.raw_message))
@@ -114,6 +119,7 @@ class IRCConnection(IRCTarget):
 		self.connection_type = connection_type
 
 	def __setitem__(self, key, value):
+		print (key, value.params)
 		if key == None:
 			key = value.command
 		if type(key) != str:
@@ -131,11 +137,15 @@ class IRCConnection(IRCTarget):
 				raise IRCException(message=431)
 			if patterns['nickname'].fullmatch(value.params[0]) == None:
 				raise IRCException(message=432)
-			if server.has_nickname(value.params[0]):
+			if value.server.has_nickname(value.params[0]):
 				raise IRCException(message=433)
+			self.name = value.params[0]
 			super().__setitem__(key, value.params[0])
 		elif key == 'USER':
 			self.connection_type = 'USER'
+			if len(value.params) == 1: #This is a connection from a client
+				super().__setitem__(key, value.params[0])
+				return None
 			if len(value.params) < 4:
 				raise IRCException(message=461)
 			'''
@@ -147,6 +157,7 @@ class IRCConnection(IRCTarget):
 			super().__setitem__('REAL', value.params[3])
 		elif key == 'SERVER':
 			self.connection_type = 'SERVER'
+			self.name = value.params[0]
 			'''
 			Interserver components were not implemented in this assignment
 			'''
