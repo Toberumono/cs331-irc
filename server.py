@@ -5,7 +5,7 @@ import helpers, sharedMethods
 class Server(helpers.ThreeStateLogger):
 
 	def __init__(self, port, host="", verbosity=0, listen_timeout=5, socket_timeout=1.0,
-		decoder=sharedMethods.decoder, encoder=sharedMethods.encoder, socket_thread=lambda server, clientSock, clientAddr: None):
+		decoder=sharedMethods.decoder, encoder=sharedMethods.encoder, socket_thread=lambda server, clientSock, clientAddr: None, force_empty_host=False):
 		super().__init__(verbosity)
 		self._running, self.__runningLock = False, threading.RLock()
 		self._port, self._host = port, host
@@ -14,7 +14,7 @@ class Server(helpers.ThreeStateLogger):
 		self._socket_thread = socket_thread
 		self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self.socket.bind((self.host, self.port))
+		self.socket.bind(("" if force_empty_host else self.host, self.port))
 
 	def start(self, waitForCompletion=True):
 		with self.__runningLock:

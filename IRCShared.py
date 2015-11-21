@@ -100,11 +100,18 @@ class IRCUserDict(ConditionalDict):
 				raise IRCUserException(str(key) + " is not a valid IRC Username.  Usernames cannot contain CR, LF, ' ', or '@'")
 		super().__init__(source, constraint)
 
-class IRCConnection(dict):
-	def __init__(self, sock, connection_type=None, source=dict()):
+class IRCTarget(dict):
+	def __init__(self, sock, source=dict()):
 		super().__init__(source)
-		self.connection_type = connection_type
 		self.sock = sock
+
+	def send_message(self, message):
+		self.sock.sendall(sharedMethods.encoder(message.raw_message))
+
+class IRCConnection(IRCTarget):
+	def __init__(self, sock, connection_type=None, source=dict()):
+		super().__init__(sock=sock, source=source)
+		self.connection_type = connection_type
 
 	def __setitem__(self, key, value):
 		if key == None:
@@ -148,4 +155,3 @@ class IRCConnection(dict):
 
 	def isComplete(self):
 		return ('PASS' in self) and ((('NICK' in self) and ('USER' in self)) or ('SERVER' in self))
-
