@@ -3,88 +3,96 @@
 # Edward Kwiatkowski and Josh Lipstone
 
 import sys, socket, re, platform
+import threading
+import sharedMethods
+from tkinter import *
+from tkinter.scrolledtext import *
 
-channel = ""
-
-
-
-def receiveMessage(message):
-    if message.split()
-    if channel != "":
-        message = channel + ":" + message
+def sendMessage(event, entry):
+    message = entry.get()
+    entry.delete(0, END)
     
-def displayCommands():
-    print("the command")
+    #receiveMessage(message) #maybe necessary if we don't get msgs we've sent back from server
+def processMsgRecvd(message):
+    print(message)
+    
+def receiveMessage(display, ssock):
+    def loopfunc():
+        while True:
+            #Get message from server here
+            message = ""
+            while message == "":
+                message = sharedMethods.getSocketResponse(ssock)
 
-def sendNickUser(sock, message):
-    sock.send(message.encode("ascii"))
-    reply = sock.recv(1024).decode("ascii")
-    recieveMessage(reply)
+            #Process message
+            processMsgRecvd(message)
 
-    while (message[0:5] != "USER " and (reply not in userFail)):
-        message = input("Please enter your username USER <user> <mode> * <realname>.")
+            #Display it
+            display.insert(END, message + "\n")
+            display.see(END)
+    return loopfunc
+
+def serverConnect(serverSock, display, entry):
+    message = ""
+    while (message[0:5] != "NICK " and message[0:5] != "PASS "):
+        display.insert(END, "Optionally, you may enter a password: PASS <pass> \n Otherwise, please enter a nickname: NICK <nick> \n As well as a username: USER <user> <host> <server> <real>")
+        display.see(END)
+        
+
+    if message[0:5] == "PASS ":
+        serverSock.send((message+"\r\n").encode("ascii"))
         reply = serverSock.recv(1024).decode("ascii")
-        recieveMessage(reply)
-    serverSock.send(message.encode("ascii"))
-    receiveMessage(serverSock.recv(1024))
+        receiveMessage(reply)
 
-def serverConnect(server, port):
-    server = int(server)
-    port = int(port)
-    serverSock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
-    try:
-        serverSock.connect((server, port))
-        print("Connected to server " + server + " on port " + port)
-        
-        passwordSet = False
-        message = ""
-        while (message[0:5] != "NICK " and message[0:5] != "PASS "):
-            message = input("Please enter either a password (PASS <pass>), or a nickname (NICK <nick>).")
+        while message[0:5] != "NICK ":
+            message = input("Please enter your nickname (NICK <nick>).")
+            message = message.split()
+        passwordSet = True
+    sendNickUser(serverSock, message)    
 
-        if message[0:5] == "PASS ":
-            serverSock.send((message+"\r\n").encode("ascii"))
-            reply = serverSock.recv(1024).decode("ascii")
-            recieveMessage(reply)
-            
-            while message[0:5] != "NICK ":
-                message = input("Please enter your nickname (NICK <nick>).")
-            passwordSet = True
-        sendNickUser(serverSock, message)    
-        
-        doneTalking = False
-        
-        while (not doneTalking):
-            message = input("Please enter a command, or HELP to see a list of commands.\n")
+    doneTalking = False
 
-            if message[0:4] == "QUIT":
-                doneTalking = True
-            if message[0:4] == "HELP":
-                displayCommands()
-                
-            serverSock.send(message.encode("ascii"))
-            receiveMessage(message)
+    while (not doneTalking):
+        message = input("Please enter a command; QUIT to exit the server.\n")
 
-        serverSock.close()
-    except ConnectionRefusedError:
-        print("Error: Unable to connect to server.")
+        if message[0:4] == "QUIT":
+            doneTalking = True
+
+        serverSock.send((message+"\r\n").encode("ascii"))
+        reply = serverSock.recv(512).decode("ascii")
+        receiveMessage(message)
+
+    serverSock.close()
         
 def main():
+    root = Tk()
+    display = ScrolledText(root, height=10, width=100)
+    entry = Entry(root, width=100)
+    display.pack(side=TOP, fill=X)
+    entry.bind('<Return>', sendMessage)
+    entry.pack(side=BOTTOM, fill=X)
     continueInputs = True
     while continueInputs:
-        server = input("Enter the server IP (*exit to quit):")
-        if server == "*exit":
+        display.insert(END, "Enter the server IP (QUIT to exit):" + "\n")
+        display.see(END)
+        if server == "QUIT":
             exit()
-        if server == "":
-            continueInputs = False
-            continue
-        port = input("Enter the port (*exit to quit):")
-        if port == "*exit":
+        display.insert(END, "Enter the port (QUIT to exit):" + "\n")
+        display.see(END)
+        if port == "QUIT":
             exit()
-        if port == "":
-            continueInputs = False
-            continue
-
-        serverConnect(server, port)
+        port = int(port)
+        serverSock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        try:
+            serverSock.connect((server, port))
+            display.insert(END, ("Connected to server " + server + " on port " + port + "\n"))
+            display.see(END)
+        except ConnectionRefusedError:
+            print("Error: Unable to connect to server.")
+        thread = threading.Thread(target=receiveMessage(display, serverSock), daemon=True)
+        thread.start()
+        serverConnect(serverSock, display, entry)
+        thread.stop()
     exit()
 
 main()
