@@ -6,6 +6,8 @@ patterns = {
 	'nickname' : re.compile('([a-zA-Z]|' + regexes['special'] + ')([a-zA-Z0-9]|-|' + regexes['special'] + ')*')
 }
 errors = {
+	402 : ('ERR_NOSUCHSERVER', 'No such server'),
+	409 : ('ERR_NOORIGIN', 'No origin specified'),
 	431 : ('ERR_NONICKNAMEGIVEN', 'No nickname given'),
 	432 : ('ERR_ERRONEUSNICKNAME', 'Erroneous nickname'),
 	433 : ('ERR_NICKNAMEINUSE', 'Nickname is already in use'),
@@ -41,6 +43,7 @@ class ConditionalDict(dict):
 
 class IRCMessage():
 	def __init__(self, raw_message, sever=None):
+		self.raw_message = raw_message
 		self.server, self.params, self.source, self.command = server, None, None, None
 		if raw_message[0] == ':':
 			idx = raw_message.find(' ')
@@ -59,7 +62,9 @@ class IRCMessage():
 			raw_message = raw_message[0:raw_message.find(':')]
 
 		args = re.finditer(r'("((?<!\\)")*"|[^ ]+)', raw_message)
-		self.params = [par for par in args]
+		self.params = [par.group(0) for par in args]
+		while len(self.params) > 15: #Merge the trailing arguments into a single argument
+			self.params[len(self.params) - 2] = self.params[len(self.params) - 2] + " " + self.params.pop()
 		if last_comm != None: self.params.append(last_comm)
 
 class IRCChannelDict(ConditionalDict):
@@ -95,9 +100,11 @@ class IRCUserDict(ConditionalDict):
 				raise IRCUserException(str(key) + " is not a valid IRC Username.  Usernames cannot contain CR, LF, ' ', or '@'")
 		super().__init__(source, constraint)
 
-class IRCUser(dict):
-	def __init__(self, source=dict()):
+class IRCConnection(dict):
+	def __init__(self, sock, connection_type=None, source=dict()):
 		super().__init__(source)
+		self.connection_type = connection_type
+		self.sock = sock
 
 	def __setitem__(self, key, value):
 		if key == None:
@@ -121,6 +128,7 @@ class IRCUser(dict):
 				raise IRCException(message=433)
 			super().__setitem__(key, value.params[0])
 		elif key == 'USER':
+			self.connection_type = 'USER'
 			if len(value.params) < 4:
 				raise IRCException(message=461)
 			'''
@@ -130,9 +138,14 @@ class IRCUser(dict):
 			super().__setitem__('HOST', value.params[1])
 			super().__setitem__('SERVER', value.params[2])
 			super().__setitem__('REAL', value.params[3])
+		elif key == 'SERVER':
+			self.connection_type = 'SERVER'
+			'''
+			Interserver components were not implemented in this assignment
+			'''
 		else:
 			raise IRCUserException("Unexpected command")
 
 	def isComplete(self):
-		return ('PASS' in self) and ('NICK' in self) and ('USER' in self)
+		return ('PASS' in self) and ((('NICK' in self) and ('USER' in self)) or ('SERVER' in self))
 
