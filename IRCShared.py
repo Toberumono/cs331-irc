@@ -1,4 +1,5 @@
 import re
+import sharedMethods
 
 regexes = {'special' : r'[\[\]\{\}\\`_^|]'}
 patterns = {
@@ -10,12 +11,16 @@ errors = {
 	409 : ('ERR_NOORIGIN', 'No origin specified'),
 	411 : ('ERR_NORECIPIENT', 'No recipient given'),
 	412 : ('ERR_NOTEXTTOSEND', 'No text to send'),
+	421 : ('ERR_UNKNOWNCOMMAND', 'Unknown command'),
 	431 : ('ERR_NONICKNAMEGIVEN', 'No nickname given'),
 	432 : ('ERR_ERRONEUSNICKNAME', 'Erroneous nickname'),
 	433 : ('ERR_NICKNAMEINUSE', 'Nickname is already in use'),
+	451 : ('ERR_NOTREGISTERED', 'You have not registered'),
 	461 : ('ERR_NEEDMOREPARAMS', 'Not enough parameters'),
-	462 : ('ERR_ALREADYREGISTRED', 'You may not reregister')
+	462 : ('ERR_ALREADYREGISTRED', 'You may not reregister'),
+	464 : ('ERR_PASSWDMISMATCH', 'Password incorrect')
 }
+disconnection_errors = [464]
 
 class IRCException(Exception):
 	def __init__(self, message="An IRC Error occurred", *args):
@@ -46,8 +51,11 @@ class ConditionalDict(dict):
 
 class IRCMessage():
 	def __init__(self, raw_message, server=None):
-		self.raw_message = raw_message.strip() + '\n'
-		self.server, self.params, self.source, self.command = server, None, None, None
+		raw_message = raw_message.strip()
+		self.server, self.params, self.source, self.command = server, [], None, None
+		if len(raw_message) == 0:
+			return
+		self.__has_last_comm = False
 		if raw_message[0] == ':':
 			idx = raw_message.find(' ')
 			if idx < 0: raise IRCException(message="Invalid command")
@@ -61,13 +69,26 @@ class IRCMessage():
 		
 		last_comm = None
 		if raw_message.find(':') >= 0:
+			self.__has_last_comm = True
 			last_comm = raw_message[raw_message.find(':') + 1:]
 			raw_message = raw_message[0:raw_message.find(':')]
 		args = re.finditer(r'("((?<!\\)")*"|[^ \r\n]+)', raw_message)
 		self.params = [par.group(0) for par in args]
+		if last_comm != None: self.params.append(last_comm)
 		while len(self.params) > 15: #Merge the trailing arguments into a single argument
 			self.params[len(self.params) - 2] = self.params[len(self.params) - 2] + " " + self.params.pop()
-		if last_comm != None: self.params.append(last_comm)
+
+	def __str__(self):
+		output = ""
+		if self.source != None:
+			output = output + ":" + self.source + " "
+		output = output + self.command + " "
+		if self.__has_last_comm:
+			output = output + " ".join(self.params[0:len(self.params) - 1])
+			output = output + " :" + str(self.params[-1])
+		else:
+			output = output + " ".join(self.params)
+		return output + "\n"
 
 class IRCChannelDict(ConditionalDict):
 	def __init__(self, source=dict(), max_channel_length=50):
@@ -111,58 +132,12 @@ class IRCTarget(dict):
 		self.name = None
 
 	def send_message(self, message):
-		self.sock.sendall(sharedMethods.encoder(message.raw_message))
+		self.sock.sendall(sharedMethods.encoder(str(message)))
 
 class IRCConnection(IRCTarget):
 	def __init__(self, sock, connection_type=None, source=dict()):
 		super().__init__(sock=sock, source=source)
 		self.connection_type = connection_type
-
-	def __setitem__(self, key, value):
-		print (key, value.params)
-		if key == None:
-			key = value.command
-		if type(key) != str:
-			raise IRCUserException(str(key) + " is not a valid user-registration command.  All commands must be strings")
-		if key in self:
-			raise IRCException(message=462)
-		if key == 'AUTH':
-			super().__setitem__(key, value.params[0])
-		elif key == 'PASS':
-			if len(value.params) < 1:
-				raise IRCException(message=461)
-			super().__setitem__(key, value.params[0])
-		elif key == 'NICK':
-			if len(value.params) < 1:
-				raise IRCException(message=431)
-			if patterns['nickname'].fullmatch(value.params[0]) == None:
-				raise IRCException(message=432)
-			if value.server.has_nickname(value.params[0]):
-				raise IRCException(message=433)
-			self.name = value.params[0]
-			super().__setitem__(key, value.params[0])
-		elif key == 'USER':
-			self.connection_type = 'USER'
-			if len(value.params) == 1: #This is a connection from a client
-				super().__setitem__(key, value.params[0])
-				return None
-			if len(value.params) < 4:
-				raise IRCException(message=461)
-			'''
-			If we have time, we'll validate the structure of the parameters here
-			'''
-			super().__setitem__(key, value.params[0])
-			super().__setitem__('HOST', value.params[1])
-			super().__setitem__('SERVER', value.params[2])
-			super().__setitem__('REAL', value.params[3])
-		elif key == 'SERVER':
-			self.connection_type = 'SERVER'
-			self.name = value.params[0]
-			'''
-			Interserver components were not implemented in this assignment
-			'''
-		else:
-			raise IRCUserException("Unexpected command")
 
 	def isComplete(self):
 		return ('PASS' in self) and ((('NICK' in self) and ('USER' in self)) or ('SERVER' in self))

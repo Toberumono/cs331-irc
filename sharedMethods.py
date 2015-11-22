@@ -4,8 +4,9 @@ from helpers import *
 
 debugger = ThreeStateLogger(0)
 default = {
-	'timeout' : 20.0,
+	'timeout' : 5.0,
 	'format' : 'ascii',
+	'separator' : ' ',
 	'buffersize' : 1024,
 	'executable' : subprocess.check_output("which bash", shell=True, universal_newlines=True).strip(), #This just gets the location of bash
 	'editor' : os.environ.get('EDITOR','vim')
@@ -24,23 +25,24 @@ def simpleSubprocess(args, executable=default['executable']):
 This is used so that we can guarantee that we will get something to send back to the user
 while also internally reporting any decoding errors if they occur.
 '''
-def decoder(decodeable, format=default['format']):
+def decoder(*decodeable, separator=default['separator'], format=default['format']):
 	try:
-		return decodeable.decode(format)
+		return separator.join([dec.decode(format) for dec in decodeable])
 	except Exception as e:
 		debugger.log(e, level="warning")
-		return decodeable.decode(format, 'ignore')
+		return dseparator.join([dec.decode(format, 'ignore') for dec in decodeable])
 
 '''
 This is used so that we can guarantee that we will get something to send back to the user
 while also internally reporting any encoding errors if they occur.
 '''
-def encoder(encodeable, format=default['format']):
+def encoder(*encodeable, separator=default['separator'], format=default['format']):
+	enc = separator.join(encodeable)
 	try:
-		return encodeable.encode(format)
+		return enc.encode(format)
 	except Exception as e:
 		debugger.log(e, level="warning")
-		return encodeable.encode(format, 'ignore')
+		return enc.encode(format, 'ignore')
 
 '''
 This method handles the logic that forwards messages from the client to another server.

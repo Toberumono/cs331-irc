@@ -165,4 +165,6 @@ def getArgumentParser():
 	parser.add_argument("--host", type=str, help="Sets the host of the server should listen for incoming connections.", metavar='Host', default="")
 	parser.add_argument("-v", "--verbosity", type=int, help="Sets the verbosity of the server's log output.\n0: None, 1: errors, 2: warnings, 3: info\nIncreasing level adds scopes progressively.",
 		metavar='Verb', default=0, choices=helpers.TestableRange(0, 3, 'both', 1, int))
+	parser.add_argument("--listen-timeout", type=float, help="Sets the timeout on socket connections.", metavar='LT', default=5.0,
+		choices=helpers.TestableRange(1.0, 300.0, 'both', 1.0, float), dest="listen_timeout")
 	return parser
