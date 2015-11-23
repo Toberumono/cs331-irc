@@ -124,6 +124,10 @@ class IRCMessageTarget(helpers.Validator):
 			targets = targets.split(',')
 		return [ IRCMessageTarget(raw_target=target, server=server) for target in targets ]
 
+    #message:
+    #source
+    #command
+    #params
 class IRCMessage():
 	def __init__(self, raw_message, server=None):
 		raw_message = raw_message.strip()

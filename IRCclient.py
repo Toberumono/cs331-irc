@@ -5,41 +5,63 @@
 import sys, socket, re, platform
 import threading
 import sharedMethods
+from IRCShared import *
 from tkinter import *
 from tkinter.scrolledtext import *
     
-def processMsgRecvd(message):
-    #CURRENTLY A STUB, in order to get everything else working until I properly process messages from the server
-    display.insert(END, message)
-    display.see(END)
+root = Tk()
+display = ScrolledText(root, height=10, width=100)
+def processMsgRecvd(message, ssock, nickname):
+    # message : source, command, params
+    parsedMessage = IRCMessage(message)
+    intCommand = 0
+    try:
+        parsedMessage.command = int(parsedMessage.command)
+        intCommand = 1
+    except ValueError:
+        pass
+    if isinstance(parsedMessage.command, str):
+        if parsedMessage.command == "PING":
+            #print("pingd")
+            msg = IRCMessage("PONG " + nickname + " " + str(parsedMessage.source))
+            ssock.sendall(sharedMethods.encoder(str(msg)))
+        else:
+            if parsedMessage.command == "PRIVMSG" or parsedMessage.command == "NOTICE":
+                dispMessage = '[' + "From: " + parsedMessage.source + ' To: ' + parsedMessage.params[0] + ']:' + (' ' + ' '.join(parsedMessage.params[1:]) if len(parsedMessage.params) > 1 else '')
+                display.insert(END, dispMessage+"\n")
+                display.see(END)
+    else:
+        dispMessage = "<" + parsedMessage.source + ">"
+        if intCommand and (int(parsedMessage.command) >= 401 and int(parsedMessage.command) <= 599):
+            dispMessage += " ERROR: "
+        dispMessage += ' '.join(parsedMessage.params)
+        display.insert(END, dispMessage+"\n")
+        display.see(END)
     
-def receiveMessage(display, ssock):
+def receiveMessage(display, ssock, nickname):
     def loopfunc():
         while True:
             #Get message from server here
             message = ""
             while message == "":
-                message = sharedMethods.getSocketResponse(ssock)
-
+                message = sharedMethods.getSocketResponse(ssock, timeout=-1)
+                
             #Process message
-            processMsgRecvd(message)
-
-            #Display it
-            display.insert(END, message + "\n")
-            display.see(END)
+            processMsgRecvd(message, ssock, nickname)
     return loopfunc
         
 def main():
-    root = Tk()
-    display = ScrolledText(root, height=10, width=100)
     entry = Entry(root, width=100)
     serverSock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
     doneTalking = False
+    nickname = ""
     def sendMessage(event):
         message = entry.get()
+        if (message.split(' ')[0] == "NICK") and len(message.split(' ')) >= 1:
+            nickname = message.split()[1]
         if (message.strip() == "QUIT"):
             doneTalking = True
-        serverSock.send((message+"\r\n").encode("ascii"))
+        serverSock.sendall((message+"\r\n").encode("ascii"))
         entry.delete(0, END)
     display.pack(side=TOP, fill=X)
     entry.bind('<Return>', sendMessage)
@@ -56,19 +78,18 @@ def main():
         parts = inputs.strip().split()
         try:
             serverSock.connect((parts[0], int(parts[1])))
-            display.insert(END, ("Connected to server " + server + " on port " + port + "\n"))
+            display.insert(END, ("Connected to server " + parts[0] + " on port " + parts[1] + "\n"))
             display.see(END)
         except ConnectionRefusedError:
             print("Error: Unable to connect to server.")
-        thread = threading.Thread(target=receiveMessage(display, serverSock), daemon=True)
+        thread = threading.Thread(target=receiveMessage(display, serverSock, nickname), daemon=True)
         thread.start()
-        display.insert(END, "Optionally, you may enter a password: PASS <pass>.")
-        display.insert(END, "Otherwise, please enter a nickname: NICK <nick>.")
-        display.insert(END, "Finally, your username and other information: USER <user> <host> <server> <real>")
+        display.insert(END, "Optionally, you may enter a password: PASS <pass>.\n")
+        display.insert(END, "Otherwise, please enter a nickname: NICK <nick>.\n")
+        display.insert(END, "Finally, your username and other information: USER <user> <host> <server> <real>.\n")
         display.see(END)
-        while not doneTalking:
-            continue
-        thread.stop()
+        root.mainloop()
+        
     exit()
 
 main()
