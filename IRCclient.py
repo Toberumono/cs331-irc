@@ -7,14 +7,11 @@ import threading
 import sharedMethods
 from tkinter import *
 from tkinter.scrolledtext import *
-
-def sendMessage(event, entry):
-    message = entry.get()
-    entry.delete(0, END)
     
-    #receiveMessage(message) #maybe necessary if we don't get msgs we've sent back from server
 def processMsgRecvd(message):
-    print(message)
+    #CURRENTLY A STUB, in order to get everything else working until I properly process messages from the server
+    display.insert(END, message)
+    display.see(END)
     
 def receiveMessage(display, ssock):
     def loopfunc():
@@ -31,67 +28,46 @@ def receiveMessage(display, ssock):
             display.insert(END, message + "\n")
             display.see(END)
     return loopfunc
-
-def serverConnect(serverSock, display, entry):
-    message = ""
-    while (message[0:5] != "NICK " and message[0:5] != "PASS "):
-        display.insert(END, "Optionally, you may enter a password: PASS <pass> \n Otherwise, please enter a nickname: NICK <nick> \n As well as a username: USER <user> <host> <server> <real>")
-        display.see(END)
-        
-
-    if message[0:5] == "PASS ":
-        serverSock.send((message+"\r\n").encode("ascii"))
-        reply = serverSock.recv(1024).decode("ascii")
-        receiveMessage(reply)
-
-        while message[0:5] != "NICK ":
-            message = input("Please enter your nickname (NICK <nick>).")
-            message = message.split()
-        passwordSet = True
-    sendNickUser(serverSock, message)    
-
-    doneTalking = False
-
-    while (not doneTalking):
-        message = input("Please enter a command; QUIT to exit the server.\n")
-
-        if message[0:4] == "QUIT":
-            doneTalking = True
-
-        serverSock.send((message+"\r\n").encode("ascii"))
-        reply = serverSock.recv(512).decode("ascii")
-        receiveMessage(message)
-
-    serverSock.close()
         
 def main():
     root = Tk()
     display = ScrolledText(root, height=10, width=100)
     entry = Entry(root, width=100)
+    serverSock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+    doneTalking = False
+    def sendMessage(event):
+        message = entry.get()
+        if (message.strip() == "QUIT"):
+            doneTalking = True
+        serverSock.send((message+"\r\n").encode("ascii"))
+        entry.delete(0, END)
     display.pack(side=TOP, fill=X)
     entry.bind('<Return>', sendMessage)
     entry.pack(side=BOTTOM, fill=X)
     continueInputs = True
     while continueInputs:
-        display.insert(END, "Enter the server IP (QUIT to exit):" + "\n")
+        display.insert(END, ("Please do not enter any commands until you are connected to a server."))
         display.see(END)
-        if server == "QUIT":
-            exit()
-        display.insert(END, "Enter the port (QUIT to exit):" + "\n")
-        display.see(END)
-        if port == "QUIT":
-            exit()
-        port = int(port)
-        serverSock = socket.socket(family=socket.AF_INET, type=socket.SOCK_STREAM)
+        
+        inputs = input("Enter, separated by spaces, the server IP, and then the port:")
+        if inputs == "":
+            continueInputs = False
+            continue
+        parts = inputs.strip().split()
         try:
-            serverSock.connect((server, port))
+            serverSock.connect((parts[0], int(parts[1])))
             display.insert(END, ("Connected to server " + server + " on port " + port + "\n"))
             display.see(END)
         except ConnectionRefusedError:
             print("Error: Unable to connect to server.")
         thread = threading.Thread(target=receiveMessage(display, serverSock), daemon=True)
         thread.start()
-        serverConnect(serverSock, display, entry)
+        display.insert(END, "Optionally, you may enter a password: PASS <pass>.")
+        display.insert(END, "Otherwise, please enter a nickname: NICK <nick>.")
+        display.insert(END, "Finally, your username and other information: USER <user> <host> <server> <real>")
+        display.see(END)
+        while not doneTalking:
+            continue
         thread.stop()
     exit()
 
