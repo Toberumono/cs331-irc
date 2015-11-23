@@ -88,7 +88,8 @@ class IRCServer(Server):
 			self.log(e, level='error')
 			if not is_notice and (type(e.message) == int or e.should_forward): #Then this is an error code and should be sent to the client
 				self.send_error(e, connection)
-		self.deregister_user(connection)
+		finally:
+			self.deregister_user(connection)
 		return True
 
 	def get_targets(self, targets):
