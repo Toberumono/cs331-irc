@@ -2,7 +2,7 @@
 # 331 Final Project
 # Edward Kwiatkowski and Josh Lipstone
 
-import sys, socket, re, platform
+import sys, socket, re, platform, time
 import threading
 import sharedMethods
 from IRCShared import *
@@ -24,12 +24,20 @@ def processMsgRecvd(message, ssock, nickname):
         if parsedMessage.command == "PING":
             #print("pingd")
             msg = IRCMessage("PONG " + nickname + " " + str(parsedMessage.source))
-            ssock.sendall(sharedMethods.encoder(str(msg)))
+            ssock.sendall(msg.encode("ascii"))
         else:
             if parsedMessage.command == "PRIVMSG" or parsedMessage.command == "NOTICE":
                 dispMessage = '[' + "From: " + parsedMessage.source + ' To: ' + parsedMessage.params[0] + ']:' + (' ' + ' '.join(parsedMessage.params[1:]) if len(parsedMessage.params) > 1 else '')
-                display.insert(END, dispMessage+"\n")
-                display.see(END)
+            elif parsedMessage.command == "JOIN":
+                dispMessage = '<' + parsedMessage.source + '>: You have joined the channel ' + parsedMessage.params[0]
+            elif parsedMessage.command == "PART":
+                dispMessage = '<' + parsedMessage.source + '>: You have left the channel ' + parsedMessage.params[0]
+            elif parsedMessage.command == "ERROR":
+                display.insert(END, "ERROR: You have been disconnected from " + parsedMessage.source + ". Closing in 10s.\n")
+                time.sleep(10)
+                exit()
+            display.insert(END, dispMessage+"\n")
+            display.see(END)
     else:
         dispMessage = "<" + parsedMessage.source + ">"
         if intCommand and (int(parsedMessage.command) >= 401 and int(parsedMessage.command) <= 599):
