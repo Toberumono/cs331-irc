@@ -82,3 +82,23 @@ class TestableRange():
 
 	def getTest(self):
 		return self.test
+
+class Validator():
+	'''
+	Validate is a function that takes one argument and returns True
+	if that argument is valid.
+	'''
+	def __init__(self, validate):
+		self.validate = validate
+
+class ValidatorIter():
+	def __init__(self, item, validators):
+		self.__item = item
+		self.__validators = validators
+
+	def toGenerator(self):
+		for validator in self.__validators:
+			yield validator.validate(self.__item)
+
+	def __iter__(self):
+		return self.toGenerator()
