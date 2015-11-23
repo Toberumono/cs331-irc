@@ -5,22 +5,29 @@ import helpers, sharedMethods
 from server import *
 from IRCShared import *
 
+'''
+The IRC server. 
+'''
 class IRCServer(Server):
-	message_handlers = {}
+	message_handlers = {} #Used to make handling commands much simpler
 	def __init__(self, port, host="", verbosity=0, listen_timeout=5, socket_timeout=1.0,
 		decoder=sharedMethods.decoder, encoder=sharedMethods.encoder):
 		super().__init__(port=port, host=host, verbosity=verbosity, listen_timeout=listen_timeout,
 			socket_timeout=socket_timeout, decoder=decoder, encoder=encoder, socket_thread=IRCServer.server_thread,
 			force_empty_host=True)
-		self.version = -1
-		self.channels = IRCChannelDict()
-		self.modes = {'user' : 'aiwroOs', 'channel' : 'OovaimnqpsrtklbeI'}
-		self.users = IRCUserDict()
+		self.version = -1 #A bit of a joke based on how much of the spec we implemented
+		self.channels = IRCChannelDict() #The channels that are live in the server
+		self.modes = {'user' : '', 'channel' : ''} #The "available" modes (we didn't implement any)
+		self.users = IRCUserDict() #The currently logged-in users
 		self.locks = {'connections' : threading.RLock(), 'users' : threading.RLock(), 'channels' : threading.RLock(), 'id_counter' : threading.RLock()}
-		self._next_id = 0
-		self.connections = {}
-		self.__login_data = json.load(open("./userpass.json")) if os.path.isfile("./userpass.json") else {}
+		self._next_id = 0 #The id to assign to the next client connection
+		self.connections = {} #The active connections.  This includes users and channels
+		self.__login_data = json.load(open("./userpass.json")) if os.path.isfile("./userpass.json") else {} #Login data handling
 
+	'''
+	This takes shameless advantage of properties to make some later code
+	look a lot nicer.
+	'''
 	def next_id():
 		doc = "The id for the next IRCConnection."
 		def fget(self):
@@ -35,16 +42,16 @@ class IRCServer(Server):
 
 	def register_user(self, connection):
 		with self.locks['users']:
-			if connection['USER'] in self.__login_data:
+			if connection['USER'] in self.__login_data: #If we've seen this user before, we validate their password
 				if self.__login_data[connection['USER']] != connection['PASS']:
 					raise IRCException(message=464)
-			else:
+			else: #Otherwise, we create a new username, password pair and store it.
 				self.__login_data[connection['USER']] = connection['PASS']
 				json.dump(self.__login_data, open("./userpass.json", 'w'))
 				with self.locks['connections']:
 					self.connections[connection.name] = connection
 				self.users[connection.name] = connection
-		with connection.lock:
+		with connection.lock: #We send all of the welcome messages in a block
 			self.send_reply(connection, 1, connection.name)
 			self.send_reply(connection, 2, self.host, self.version)
 			self.send_reply(connection, 3)
@@ -59,7 +66,6 @@ class IRCServer(Server):
 			with self.locks['users']:
 				del self.users[connection.name]
 			del self.connections[connection.name]
-				
 
 	def is_channel(self, name):
 		with self.locks['channels']:
@@ -112,7 +118,7 @@ class IRCServer(Server):
 			self.deregister_user(connection)
 		return True
 
-	def get_targets(self, targets):
+	def get_targets(self, targets): #Parses a comma-separated targets list or a list of targets
 		if type(targets) == str:
 			targets = [ IRCMessageTarget(target, self) for target in targets.split(',') ]
 		return [ connection for name, connection in self.connections.items() if any(helpers.ValidatorIter(name, targets)) ]
@@ -212,8 +218,7 @@ class IRCChannel(IRCTarget):
 		with self.lock:
 			if connection not in self.members:
 				raise IRCException(self.name, message=442)
-			part_msg = IRCMessage("PART " + self.name + " :" + (message.params[1] if len(message.params) > 1 else connection.name), server=message.server)
-			part_msg.source = connection.name
+			part_msg = IRCMessage("PART " + self.name + " :" + (message.params[1] if len(message.params) > 1 else connection.name), server=message.server, source=connection.name)
 			self.send_message(part_msg, connection)
 			self.members.remove(connection)
 			connection.channels.remove(self)
@@ -260,7 +265,7 @@ def __pass(server, connection, message):
 	if connection.isComplete():
 		if 'USER' in connection:
 			server.register_user(connection)
-IRCServer.message_handlers['AUTH'] = __pass #We aren't handling AUTH, so this is a convenient placeholder
+IRCServer.message_handlers['AUTH'] = __pass #We aren't handling AUTH, but this is a convenient placeholder
 IRCServer.message_handlers['PASS'] = __pass
 
 def __user(server, connection, message):
@@ -365,7 +370,7 @@ def __join(server, connection, message):
 		raise IRCException(message.command, message=461)
 	if message.params[0] == '0':
 		while len(connection.channels) > 0:
-			__part(server, connection, IRCMessage(':' + message.source + " PART " + connection.channels[0].name))
+			__part(server, connection, IRCMessage("PART " + connection.channels[0].name, server=server, source=connection.name))
 		return
 	channels = message.params[0].split(',')
 	keys = message.params[1].split(',') if len(message.params) > 1 else []

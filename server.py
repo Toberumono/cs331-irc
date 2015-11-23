@@ -2,6 +2,10 @@ import sys, socket, select, re, argparse
 import threading, subprocess, os.path
 import helpers, sharedMethods
 
+'''
+This class is the base class for the IRCServer, and is placed here for code organization purposes.
+It extends helpers.ThreeStateLogger so that calls to log errors are shorter.
+'''
 class Server(helpers.ThreeStateLogger):
 
 	def __init__(self, port, host="", verbosity=0, listen_timeout=5, socket_timeout=1.0,
@@ -16,6 +20,9 @@ class Server(helpers.ThreeStateLogger):
 		self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self.socket.bind(("" if force_empty_host else self.host, self.port))
 
+	'''
+	Starts the server, optionally calls the awaitCompletion method.
+	'''
 	def start(self, waitForCompletion=True):
 		with self.__runningLock:
 			if self.isRunning():
@@ -40,6 +47,9 @@ class Server(helpers.ThreeStateLogger):
 				self.stop()
 		return self.isRunning()
 
+	'''
+	Stops the server.
+	'''
 	def stop(self):
 		with self.__runningLock:
 			if not self.isRunning():
@@ -64,9 +74,16 @@ class Server(helpers.ThreeStateLogger):
 				cli.start()
 			except socket.timeout: pass #The socket times out every second, so we have to catch this.
 
+	'''
+	Wrapper method around self.running.  It's just for readability.
+	'''
 	def isRunning(self):
 		return self.running
 
+	'''
+	These structures are property assignments, and are used to make some of the later code
+	a lot shorter.
+	'''
 	def port():
 		doc = "The port on which the server is operating."
 		def fget(self): return self._port
@@ -150,6 +167,9 @@ class Server(helpers.ThreeStateLogger):
 		return locals()
 	running = property(**running())
 
+	'''
+	A wrapper around the provided socket_thread that allows for simple threads to not include a loop.
+	'''
 	def __serverLoop(server, socket_thread, clientSock, clientAddr):
 		try:
 			while server.isRunning() and socket_thread(server, clientSock, clientAddr) == None: continue
