@@ -24,20 +24,25 @@ def processMsgRecvd(message, ssock, nickname):
         if parsedMessage.command == "PING":
             #print("pingd")
             msg = IRCMessage("PONG " + nickname + " " + str(parsedMessage.source))
-            ssock.sendall(msg.encode("ascii"))
+            ssock.sendall(sharedMethods.encoder(str(msg)))
         else:
+            dispMessage = ""
             if parsedMessage.command == "PRIVMSG" or parsedMessage.command == "NOTICE":
                 dispMessage = '[' + "From: " + parsedMessage.source + ' To: ' + parsedMessage.params[0] + ']:' + (' ' + ' '.join(parsedMessage.params[1:]) if len(parsedMessage.params) > 1 else '')
+                display.insert(END, dispMessage+"\n")
+                display.see(END)
             elif parsedMessage.command == "JOIN":
                 dispMessage = '<' + parsedMessage.source + '>: You have joined the channel ' + parsedMessage.params[0]
+                display.insert(END, dispMessage+"\n")
+                display.see(END)
             elif parsedMessage.command == "PART":
                 dispMessage = '<' + parsedMessage.source + '>: You have left the channel ' + parsedMessage.params[0]
+                display.insert(END, dispMessage+"\n")
+                display.see(END)
             elif parsedMessage.command == "ERROR":
                 display.insert(END, "ERROR: You have been disconnected from " + parsedMessage.source + ". Closing in 10s.\n")
                 time.sleep(10)
                 exit()
-            display.insert(END, dispMessage+"\n")
-            display.see(END)
     else:
         dispMessage = "<" + parsedMessage.source + ">"
         if intCommand and (int(parsedMessage.command) >= 401 and int(parsedMessage.command) <= 599):
@@ -67,9 +72,12 @@ def main():
         message = entry.get()
         if (message.split(' ')[0] == "NICK") and len(message.split(' ')) >= 1:
             nickname = message.split()[1]
+        if (message.split(' ')[0] == "PRIVMSG" or message.split(' ')[0] == "NOTICE"):
+            display.insert(END, str(IRCMessage(message)) + "\n")
+            display.see(END)
         if (message.strip() == "QUIT"):
             doneTalking = True
-        serverSock.sendall((message+"\r\n").encode("ascii"))
+        serverSock.sendall((message+"\n").encode("ascii"))
         entry.delete(0, END)
     display.pack(side=TOP, fill=X)
     entry.bind('<Return>', sendMessage)
@@ -90,6 +98,8 @@ def main():
             display.see(END)
         except ConnectionRefusedError:
             print("Error: Unable to connect to server.")
+            exit()
+            
         thread = threading.Thread(target=receiveMessage(display, serverSock, nickname), daemon=True)
         thread.start()
         display.insert(END, "Optionally, you may enter a password: PASS <pass>.\n")
