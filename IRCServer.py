@@ -13,10 +13,9 @@ class IRCServer(Server):
 			socket_timeout=socket_timeout, decoder=decoder, encoder=encoder, socket_thread=IRCServer.server_thread,
 			force_empty_host=True)
 		self.channels = IRCChannelDict()
-		self.channels['&test'] = IRCChannel('&test')
 		self.users = IRCUserDict()
 		self.locks = {'connections' : threading.RLock(), 'users' : threading.RLock(), 'channels' : threading.RLock()}
-		self.connections = {'&test' : self.channels['&test']}
+		self.connections = {}
 		self.__login_data = json.load(open("./userpass.json")) if os.path.isfile("./userpass.json") else {}
 
 	def register_user(self, connection):
@@ -88,8 +87,9 @@ class IRCServer(Server):
 			self.log(e, level='error')
 			if not is_notice and (type(e.message) == int or e.should_forward): #Then this is an error code and should be sent to the client
 				self.send_error(e, connection)
-		finally:
-			self.deregister_user(connection)
+		except IOError as e:
+			self.log(e, level='error')
+		self.deregister_user(connection)
 		return True
 
 	def get_targets(self, targets):
@@ -113,11 +113,12 @@ class IRCChannel(IRCTarget):
 	operators is a list of IRCConnections
 	bans is a list of IRCConnections
 	'''
-	def __init__(self, name, key=None, members=[], operators=[], bans=[], invited=[], topic="", flags=""):
+	def __init__(self, name, server, key=None, members=[], operators=[], bans=[], invited=[], topic=None, flags=""):
 		super().__init__(None, name=name)
 		self.members, self.operators, self.bans, self.invited = members, operators, bans, invited
 		self.flags = flags #Gonna need to parse flags
 		self.key = key
+		self.server = server
 		self._topic = topic
 
 	def topic():
@@ -152,14 +153,16 @@ class IRCChannel(IRCTarget):
 			part_msg.source = connection.name
 			self.send_message(part_msg, connection)
 			self.members.remove(connection)
-			if connection in self.operators: self.operators.remove(connection)
+			if len(self.members) == 0:
+				del self.server.channels[self.name]
+				del self.server.connections[self.name]
 
 	def send_message(self, message, connection=None):
 		with self.lock:
 			if connection != None and connection not in self.members:
 				raise IRCException(self.name, message=404)
 			for member in self.members:
-				member.send_message(message, self)
+				member.send_message(message, connection)
 
 	def can_connect(self, connection, message, key=None):
 		with self.lock:
@@ -303,7 +306,9 @@ def __join(server, connection, message):
 	keys = message.params[1].split(',') if len(message.params) > 1 else []
 	for channel, key in itertools.zip_longest(channels, keys, fillvalue=None):
 		if channel not in server.channels:
-			raise IRCException(channel, message=403)
+			server.channels[channel] = IRCChannel(channel, server)
+			server.connections[channel] = server.channels[channel]
+			#raise IRCException(channel, message=403)
 		server.channels[channel].try_join(key, connection)
 		join_msg = IRCMessage("JOIN " + channel)
 		join_msg.source = server.host
@@ -320,8 +325,9 @@ def __part(server, connection, message):
 	for channel in channels:
 		if channel not in server.channels:
 			raise IRCException(channel, message=403)
-		server.channels[channel].try_part(message, connection)
-		connection.channels.remove(server.channels[channel])
+		chan = server.channels[channel]
+		chan.try_part(message, connection)
+		connection.channels.remove(chan)
 IRCServer.message_handlers['PART'] = __part
 
 def __topic(server, connection, message):
