@@ -86,6 +86,8 @@ This method will either return the raw bytes from the socket up to buffersize or
 	read from the socket.
 '''
 def timeoutRecv(sock, buffersize=default['buffersize'], timeout=default['timeout']):
+	if timeout <= 0:
+		return sock.recv(buffersize)
 	ready = select.select([sock], [], [], timeout)
 	if ready[0]:
 		return sock.recv(buffersize)
