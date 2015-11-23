@@ -1,5 +1,8 @@
 import sys
 
+'''
+A simple class to make logging easier.
+'''
 class ThreeStateLogger():
 	def __init__(self, verbosity):
 		verbosity = (0 if verbosity < 0 else (3 if verbosity > 3 else verbosity)) if type(verbosity) == int else 0
@@ -26,6 +29,9 @@ class ThreeStateLogger():
 	def getVerbosity():
 		return self.verbosity
 
+'''
+A extended version of range that allows for multiple bound settings and any time that implements the addition and modulus operators.
+'''
 class TestableRange():
 	def getRangeTest(self, inclusive):
 		inclusive = inclusive.strip().lower()
@@ -58,6 +64,9 @@ class TestableRange():
 	def __contains__(self, item):
 		return self.test(item)
 
+	'''
+	This is where the magic that allows for non-int types to be used in the range.
+	'''
 	def toGenerator(self):
 		start = self.getLowerBound() + (0 if self.getInclusivity() == 'lower' or self.getInclusivity == 'both' else self.getStep())
 		end = self.getUpperBound() + (self.getStep() if self.getInclusivity() == 'upper' or self.getInclusivity == 'both' else 0)
@@ -84,6 +93,9 @@ class TestableRange():
 	def getTest(self):
 		return self.test
 
+'''
+Does what the name implies.
+'''
 class Validator():
 	'''
 	Validate is a function that takes one argument and returns True
@@ -92,6 +104,9 @@ class Validator():
 	def __init__(self, validate):
 		self.validate = validate
 
+'''
+Provides an iterator that runs over validators.  For use with the all and any built-ins.
+'''
 class ValidatorIter():
 	def __init__(self, item, validators):
 		self.__item = item

@@ -1,0 +1,24 @@
+RUNNING THE SERVER:
+	NOTES:
+		1) This REQUIRES Python 3.4.1
+		2) This is python 3, so on the lab computers, replace python with python3 in all commands.
+		3) You can run python IRCServer.py -h for information on the available command-line parameters.
+	
+	The basic command is: python IRCServer.py
+	This will create a server named 'aserver' that runs on port 6667 prints no debug output and has timeout of 10 seconds
+
+	For testing our client against our server, I recommend running the server with:
+		python IRCServer.py --verbosity 3
+	This gives you 10 seconds to type the first login command after connecting the client to the server.  If you need more time, use:
+		python IRCServer.py --verbosity 3 --listen-timeout <time>
+
+	For testing our server with telnet, I recommend running the server with:
+		python IRCServer.py --verbosity 3 --listen-timeout 300
+	This will give you a listen-timeout of 5 minutes (so maximum 5 minutes between each command):
+
+RUNNING TELNET:
+	LOGGING IN:
+		1) Send the commands, PASS, NICK, and USER (in any order)
+	AFTER YOU LOG IN:
+		1) You will receive the welcome message
+		2) That's it.  You can use any of the commands that you can use from the client.

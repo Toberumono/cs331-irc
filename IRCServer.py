@@ -67,21 +67,30 @@ class IRCServer(Server):
 				del self.users[connection.name]
 			del self.connections[connection.name]
 
+	'''
+	Returns true if a channel exists with the given name.
+	'''
 	def is_channel(self, name):
 		with self.locks['channels']:
 			return name in self.channels
 
+	'''
+	Returns True if a user is logged in with the given nickname.
+	'''
 	def is_nick(self, name):
 		with self.locks['users']:
 			return name in self.users
 
+	'''
+	The main thread for the server.
+	'''
 	def server_thread(self, clientSock, clientAddr):
 		sent_ping, is_notice = False, False
 		self.log("Received connection from:", str(clientAddr), level='info')
 		try:
 			connection = IRCConnection(sock=clientSock, ID=self.next_id)
-			registration_messages = 0
-			while registration_messages <= 4:
+			registration_messages = 0 #Used to prevent bad clients from spamming registration messages.
+			while registration_messages <= 4: #This allows for one mistake while registering
 				try:
 					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout, buffersize=1) #ACII stuff
 				except socket.timeout: #This handles the, "send a ping after no data goes through a connection" part
@@ -90,22 +99,23 @@ class IRCServer(Server):
 					sent_ping = True
 					continue
 				sent_ping = False
-				message = IRCMessage(text, self)
-				is_notice = (message.command == 'NOTICE')
+				message = IRCMessage(text, server=self) #Parse the message from the client
+				is_notice = (message.command == 'NOTICE') #If it is notice, don't send any responses
 				if not connection.isComplete(): registration_messages += 1 #Then we are still in the registration process
-				if message.source == None: message.source = connection.name #The source of a message is, by default, the nickname of the connection
+				if message.source == None: message.source = connection.name #The source of a message is, by default, the name of the connection from whence it came
 
 				try:
-					if message.command not in IRCServer.message_handlers:
+					if message.command not in IRCServer.message_handlers: #If the command does not exist, inform the client
 						raise IRCException(message.command, message=421)
-					IRCServer.message_handlers[message.command](self, connection, message) #Then this connection is live
+					IRCServer.message_handlers[message.command](self, connection, message) #Process the command
 				except IRCException as e:
 					self.log(e, level='error')
-					if not is_notice and (type(e.message) == int or e.should_forward): #Then this is an error code and should be sent to the client
+					if not is_notice and (type(e.message) == int or e.should_forward): #Only forward errors to the client if the command was not notice and the error code is numeric)
 						self.send_error(e, connection)
 						if e.message in disconnection_errors:
 							break
-				if message.command == 'QUIT': break
+
+				if message.command == 'QUIT': break #If the user sent quit, then quit
 			if not connection.isComplete():
 				connection.send_message(IRCMessage("ERROR"))
 		except IRCException as e:
@@ -115,12 +125,15 @@ class IRCServer(Server):
 		except IOError as e:
 			self.log(e, level='error')
 		finally:
-			self.deregister_user(connection)
+			self.deregister_user(connection) #The finally ensures that the client is /always/ properly disconnected, regardless of how the connection was closed
 		return True
 
-	def get_targets(self, targets): #Parses a comma-separated targets list or a list of targets
+	'''
+	Parses a comma-separated list of targets or a python list of targets
+	'''
+	def get_targets(self, targets):
 		if type(targets) == str:
-			targets = [ IRCMessageTarget(target, self) for target in targets.split(',') ]
+			targets = [ IRCMessageTarget(target, self) for target in targets.split(',') ] #Splits a comma-separated list of targets into a python list
 		return [ connection for name, connection in self.connections.items() if any(helpers.ValidatorIter(name, targets)) ]
 
 	def send_error(self, e, connection):
@@ -132,9 +145,13 @@ class IRCServer(Server):
 	def send_reply(self, connection, reply, *args):
 		if reply in replies:
 			reply = str(reply) + " " + replies[reply][1]
-		reply = reply.format(*args)
+		reply = reply.format(*args) #Inserts the parameters into the reply message
 		connection.send_message(IRCMessage(reply, server=self, source=self.host))
 
+	'''
+	Sends a list of messages to the client while holding the client's lock.
+	This ensures that the ordering of the messages is consistent.
+	'''
 	def send_list(self, connection, *args):
 		with connection.lock:
 			for arg in args:
@@ -142,12 +159,13 @@ class IRCServer(Server):
 					connection.send_message(IRCMessage(arg, server=self, source=self.host))
 				self.send_reply(connection, arg[0], *arg[1])
 
+'''
+Implements an IRC Channel.  This extends IRCTarget because the process of sending messages
+to users and channels is functionally identical.
+'''
 class IRCChannel(IRCTarget):
 	'''
-	members is a list of IRCConnections
-	operators is a list of IRCConnections
-	bans is a list of IRCConnections
-	invited is a list of IRCConnections
+	members, operators, bans, and invited are a lists of IRCConnections
 	'''
 	def __init__(self, name, server, key=None, members=[], operators=[], bans=[], invited=[], topic=None, mode=""):
 		super().__init__(None, name=name)
@@ -155,6 +173,10 @@ class IRCChannel(IRCTarget):
 		self.mode, self.key, self.server = mode, key, server
 		self._topic = topic
 
+	'''
+	We use a property here so that we can guarantee that a topic change on the channel will always be broadcast
+	to all of the users connected to it.
+	'''
 	def topic():
 		doc = "The channel's topic."
 		def fget(self): return self._topic
@@ -169,6 +191,9 @@ class IRCChannel(IRCTarget):
 		return locals()
 	topic = property(**topic())
 
+	'''
+	Constructs a list of names for the RPL_NAMEREPLY that follows the JOIN confirmation.
+	'''
 	def construct_namereply(self):
 		reply = '=' #Public channel
 		if 's' in self.mode: reply = '@' #Secret channel
@@ -186,17 +211,18 @@ class IRCChannel(IRCTarget):
 			name = ' ' + name
 			if (len(reply) + 2) + len(names) + len(name) > 510: #+2 accounts for the ' :' after the reply number
 				messages.append((353, [reply, names[1:]]))
-				#messages.append(IRCMessage("353 " + replies[353].format(reply, names[1:]), server=self.server, source=self.server.host))
 				names = ''
 			names = names + ' ' + name
 		if len(names) > 0:
 			messages.append((353, [reply, names[1:]]))
-			#messages.append(IRCMessage("353 " + replies[353].format(reply, names[1:]), server=self.server, source=self.server.host))
 		if len(messages) == 0:
 			messages.append(IRCMessage("353 " + reply, server=self.server, source=self.server.host))
 		messages.append((366, [self.name]))
 		return messages
 
+	'''
+	Called when a client wants to join the channel.
+	'''
 	def try_join(self, key, connection):
 		with self.lock and connection.lock:
 			if 'i' in self.mode and connection not in self.invited:
@@ -210,10 +236,13 @@ class IRCChannel(IRCTarget):
 			connection.permissions[self.name] = ''
 			join_msg = IRCMessage("JOIN " + self.name)
 			join_msg.source = self.server.host
-			connection.send_message(join_msg)
-			self.server.send_reply(connection, 331 if self.topic == None else 332, self.name, self.topic)
-			self.server.send_list(connection, *self.construct_namereply())
-
+			with connection.lock:
+				connection.send_message(join_msg)
+				self.server.send_reply(connection, 331 if self.topic == None else 332, self.name, self.topic)
+				self.server.send_list(connection, *self.construct_namereply())
+	'''
+	Called when a client wants to leave the channel.
+	'''
 	def try_part(self, message, connection):
 		with self.lock:
 			if connection not in self.members:
@@ -227,6 +256,9 @@ class IRCChannel(IRCTarget):
 				del self.server.channels[self.name]
 				del self.server.connections[self.name]
 
+	'''
+	Overrides send_message so that messages sent to the channel a sent to all of the clients listening to the channel.
+	'''
 	def send_message(self, message, connection=None):
 		with self.lock:
 			if connection != None and connection not in self.members:
@@ -240,12 +272,18 @@ class IRCChannel(IRCTarget):
 				raise IRCException(message=474)
 			self.members.append(connection)
 
+	'''
+	Returns True if a user with the given nickname is in the channel.
+	'''
 	def has_nick(self, nick):
 		for member in self.members:
 			if nick == member.name:
 				return True
 		return False
 
+	'''
+	Returns True if a user with the given nickname is an OP in the channel
+	'''
 	def is_op(self, nick):
 		for operator in self.operators:
 			if nick == operator.name:
