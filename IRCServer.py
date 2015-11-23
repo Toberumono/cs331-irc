@@ -79,11 +79,11 @@ class IRCServer(Server):
 		sent_ping, is_notice = False, False
 		self.log("Received connection from:", str(clientAddr), level='info')
 		try:
-			connection = IRCConnection(sock=clientSock, ID=self._next_id)
+			connection = IRCConnection(sock=clientSock, ID=self.next_id)
 			registration_messages = 0
 			while registration_messages <= 4:
 				try:
-					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout)
+					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout, buffersize=1) #ACII stuff
 				except socket.timeout: #This handles the, "send a ping after no data goes through a connection" part
 					if sent_ping: break #Then this connection is no longer live
 					connection.send_message(IRCMessage("PING :" + self.host, server=self))
