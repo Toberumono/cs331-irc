@@ -131,7 +131,7 @@ class IRCServer(Server):
 
 	def send_reply(self, connection, reply, *args):
 		if reply in replies:
-			reply = replies[reply][1]
+			reply = str(reply) + " " + replies[reply][1]
 		reply = reply.format(*args)
 		connection.send_message(IRCMessage(reply, server=self, source=self.host))
 
