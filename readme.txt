@@ -15,3 +15,4 @@ IRCServer.py - The server. Runs in the command line with a few arguments; enter 
 IRCShared.py - A few useful classes that are shared by the client and server.
 sharedMethods.py - A few useful methods that are shared by the client and server.
 server.py - The base class for the server; separated for code organization purposes.
+helpers.py - Helper classes mostly used by the server.
