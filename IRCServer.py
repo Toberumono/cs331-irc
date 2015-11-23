@@ -89,7 +89,8 @@ class IRCServer(Server):
 				self.send_error(e, connection)
 		except IOError as e:
 			self.log(e, level='error')
-		self.deregister_user(connection)
+		finally:
+			self.deregister_user(connection)
 		return True
 
 	def get_targets(self, targets):
@@ -252,7 +253,7 @@ def __ping(server, connection, message):
 			raise IRCException(message.params[1], message=402)
 		server.connections[message.params[1]].send_message(message, connection)
 		return False
-	connection.sock.sendall(sharedMethods.encoder("PONG " + server.host + " " + message.params[0]))
+	connection.send_message(IRCMessage(":" + server.host + " PONG " + server.host + " " + message.source, server=server))
 	return True
 IRCServer.message_handlers['PING'] = __ping
 
