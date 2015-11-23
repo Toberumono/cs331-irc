@@ -61,8 +61,10 @@ class TestableRange():
 	def toGenerator(self):
 		start = self.getLowerBound() + (0 if self.getInclusivity() == 'lower' or self.getInclusivity == 'both' else self.getStep())
 		end = self.getUpperBound() + (self.getStep() if self.getInclusivity() == 'upper' or self.getInclusivity == 'both' else 0)
-		for x in range(start, end, self.getStep()):
+		x = start
+		while x < end:
 			yield x
+			x += self.getStep()
 
 	def __iter__(self):
 		return self.toGenerator()
