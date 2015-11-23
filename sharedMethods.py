@@ -30,7 +30,7 @@ def decoder(*decodeable, separator=default['separator'], format=default['format'
 		return separator.join([dec.decode(format) for dec in decodeable])
 	except Exception as e:
 		debugger.log(e, level="warning")
-		return dseparator.join([dec.decode(format, 'ignore') for dec in decodeable])
+		return separator.join([dec.decode(format, 'ignore') for dec in decodeable])
 
 '''
 This is used so that we can guarantee that we will get something to send back to the user
