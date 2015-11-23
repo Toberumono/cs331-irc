@@ -104,7 +104,7 @@ def main():
         thread.start()
         display.insert(END, "Optionally, you may enter a password: PASS <pass>.\n")
         display.insert(END, "Otherwise, please enter a nickname: NICK <nick>.\n")
-        display.insert(END, "Finally, your username and other information: USER <user> <host> <server> <real>.\n")
+        display.insert(END, "Finally, your username and other information: USER <user> [<host> <server> <real>].\n")
         display.see(END)
         root.mainloop()
         
