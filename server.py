@@ -21,7 +21,7 @@ class Server(helpers.ThreeStateLogger):
 			if self.isRunning():
 				return True
 			self._running = True
-			self.socket.listen(self.listen_timeout)
+			self.socket.listen(10)
 			self.socket.settimeout(self.socket_timeout)
 			serv = threading.Thread(target=self.listenThread, daemon=True)
 			serv.start()

@@ -55,7 +55,6 @@ class TestableRange():
 		if not isinstance(value, expected):
 			raise TypeError("Expected " + varname + " to be an instance of " + expected + ".  Got " + type(value) + " instead.")
 
-
 	def __contains__(self, item):
 		return self.test(item)
 
