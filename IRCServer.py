@@ -83,7 +83,7 @@ class IRCServer(Server):
 			registration_messages = 0
 			while registration_messages <= 4:
 				try:
-					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout)
+					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout, buffersize=1) #ACII stuff
 				except socket.timeout: #This handles the, "send a ping after no data goes through a connection" part
 					if sent_ping: break #Then this connection is no longer live
 					connection.send_message(IRCMessage("PING :" + self.host, server=self))
