@@ -79,7 +79,7 @@ class IRCServer(Server):
 		sent_ping, is_notice = False, False
 		self.log("Received connection from:", str(clientAddr), level='info')
 		try:
-			connection = IRCConnection(sock=clientSock, ID=self._next_id)
+			connection = IRCConnection(sock=clientSock, ID=self.next_id)
 			registration_messages = 0
 			while registration_messages <= 4:
 				try:
