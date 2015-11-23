@@ -37,7 +37,9 @@ replies = {
 	  3 : ('RPL_CREATED', 'This server was created yesterday, or the day before that.  We don\'t really know.'),
 	  4 : ('RPL_MYINFO', '{0} {1} {2} {3}'),
 	331 : ('RPL_NOTOPIC', '{0} :No topic is set'),
-	332 : ('RPL_TOPIC', '{0} :{1}')
+	332 : ('RPL_TOPIC', '{0} :{1}'),
+	353 : ('RPL_NAMEREPLY', '{0} :{1}'),
+	366 : ('RPL_ENDOFNAMES', '{0} :End of NAMES list')
 }
 disconnection_errors = [464]
 
@@ -133,9 +135,9 @@ class IRCMessageTarget(helpers.Validator):
     #command
     #params
 class IRCMessage():
-	def __init__(self, raw_message, server=None):
+	def __init__(self, raw_message, server=None, source=None):
 		raw_message = raw_message.strip()
-		self.server, self.params, self._source, self.command = server, [], None, None
+		self.server, self.params, self._source, self.command = server, [], source, None
 		if len(raw_message) == 0:
 			return
 		self.__has_last_comm = False
@@ -245,10 +247,18 @@ class IRCTarget(dict):
 			self.sock.sendall(sharedMethods.encoder(str(message)))
 
 class IRCConnection(IRCTarget):
-	def __init__(self, sock, connection_type=None, source=dict()):
+	def __init__(self, sock, ID, connection_type=None, source=dict()):
 		super().__init__(sock=sock, source=source)
 		self.connection_type = connection_type
+		self.ID = ID
 		self.channels = []
+		self.permissions = {}
+
+	def __eq__(self, other):
+		return type(other) == type(self) and other.ID == self.ID
+
+	def __hash__(self):
+		return self.ID
 
 	def isComplete(self):
 		return ('PASS' in self) and ((('NICK' in self) and ('USER' in self)) or ('SERVER' in self))

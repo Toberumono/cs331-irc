@@ -16,9 +16,22 @@ class IRCServer(Server):
 		self.channels = IRCChannelDict()
 		self.modes = {'user' : 'aiwroOs', 'channel' : 'OovaimnqpsrtklbeI'}
 		self.users = IRCUserDict()
-		self.locks = {'connections' : threading.RLock(), 'users' : threading.RLock(), 'channels' : threading.RLock()}
+		self.locks = {'connections' : threading.RLock(), 'users' : threading.RLock(), 'channels' : threading.RLock(), 'id_counter' : threading.RLock()}
+		self._next_id = 0
 		self.connections = {}
 		self.__login_data = json.load(open("./userpass.json")) if os.path.isfile("./userpass.json") else {}
+
+	def next_id():
+		doc = "The id for the next IRCConnection."
+		def fget(self):
+			with self.locks['id_counter']:
+				out = self._next_id
+				self._next_id += 1
+				return out
+		def fset(self, value): raise AttributeError("Cannot change the server's next_id property.")
+		def fdel(self): raise AttributeError("Cannot delete the server's next_id property.")
+		return locals()
+	next_id = property(**next_id())
 
 	def register_user(self, connection):
 		with self.locks['users']:
@@ -60,9 +73,8 @@ class IRCServer(Server):
 		sent_ping, is_notice = False, False
 		self.log("Received connection from:", str(clientAddr), level='info')
 		try:
-			connection = IRCConnection(sock=clientSock)
+			connection = IRCConnection(sock=clientSock, ID=self._next_id)
 			registration_messages = 0
-
 			while registration_messages <= 4:
 				try:
 					text = sharedMethods.getSocketResponse(clientSock, timeout=self.listen_timeout)
@@ -114,21 +126,27 @@ class IRCServer(Server):
 	def send_reply(self, connection, reply, *args):
 		if reply in replies:
 			reply = replies[reply][1]
-		reply = ":" + self.host + " " + reply.format(*args)
-		connection.send_message(IRCMessage(reply, server=self))
+		reply = reply.format(*args)
+		connection.send_message(IRCMessage(reply, server=self, source=self.host))
+
+	def send_list(self, connection, *args):
+		with connection.lock:
+			for arg in args:
+				if type(arg) == str:
+					connection.send_message(IRCMessage(arg, server=self, source=self.host))
+				self.send_reply(connection, arg[0], *arg[1])
 
 class IRCChannel(IRCTarget):
 	'''
 	members is a list of IRCConnections
 	operators is a list of IRCConnections
 	bans is a list of IRCConnections
+	invited is a list of IRCConnections
 	'''
-	def __init__(self, name, server, key=None, members=[], operators=[], bans=[], invited=[], topic=None, flags=""):
+	def __init__(self, name, server, key=None, members=[], operators=[], bans=[], invited=[], topic=None, mode=""):
 		super().__init__(None, name=name)
 		self.members, self.operators, self.bans, self.invited = members, operators, bans, invited
-		self.flags = flags #Gonna need to parse flags
-		self.key = key
-		self.server = server
+		self.mode, self.key, self.server = mode, key, server
 		self._topic = topic
 
 	def topic():
@@ -145,15 +163,50 @@ class IRCChannel(IRCTarget):
 		return locals()
 	topic = property(**topic())
 
+	def construct_namereply(self):
+		reply = '=' #Public channel
+		if 's' in self.mode: reply = '@' #Secret channel
+		elif 'p' in self.mode: reply = '*' #Private channel
+		reply = reply + self.name
+		messages = []
+		names = ''
+		for connection in self.members:
+			name = connection.name
+			mode = connection.permissions[self.name]
+			if 'o' in mode or 'O' in mode:
+				name = '@' + name
+			elif 'v' in mode and 'm' in self.mode:
+				name = '+' + name
+			name = ' ' + name
+			if (len(reply) + 2) + len(names) + len(name) > 510: #+2 accounts for the ' :' after the reply number
+				messages.append((353, [reply, names[1:]]))
+				#messages.append(IRCMessage("353 " + replies[353].format(reply, names[1:]), server=self.server, source=self.server.host))
+				names = ''
+			names = names + ' ' + name
+		if len(names) > 0:
+			messages.append((353, [reply, names[1:]]))
+			#messages.append(IRCMessage("353 " + replies[353].format(reply, names[1:]), server=self.server, source=self.server.host))
+		if len(messages) == 0:
+			messages.append(IRCMessage("353 " + reply, server=self.server, source=self.server.host))
+		messages.append((366, [self.name]))
+		return messages
+
 	def try_join(self, key, connection):
-		with self.lock:
-			if 'i' in self.flags and connection not in self.invited:
+		with self.lock and connection.lock:
+			if 'i' in self.mode and connection not in self.invited:
 				raise IRCException(self.name, message=473)
 			if connection in self.bans:
 				raise IRCException(self.name, message=474)
 			if key != self.key:
 				raise IRCException(self.name, message=475)
 			self.members.append(connection)
+			connection.channels.append(self)
+			connection.permissions[self.name] = ''
+			join_msg = IRCMessage("JOIN " + self.name)
+			join_msg.source = self.server.host
+			connection.send_message(join_msg)
+			self.server.send_reply(connection, 331 if self.topic == None else 332, self.name, self.topic)
+			self.server.send_list(connection, *self.construct_namereply())
 
 	def try_part(self, message, connection):
 		with self.lock:
@@ -163,6 +216,8 @@ class IRCChannel(IRCTarget):
 			part_msg.source = connection.name
 			self.send_message(part_msg, connection)
 			self.members.remove(connection)
+			connection.channels.remove(self)
+			del connection.permissions[self.name]
 			if len(self.members) == 0:
 				del self.server.channels[self.name]
 				del self.server.connections[self.name]
@@ -318,12 +373,7 @@ def __join(server, connection, message):
 		if channel not in server.channels:
 			server.channels[channel] = IRCChannel(name=channel, server=server, key=key)
 			server.connections[channel] = server.channels[channel]
-			#raise IRCException(channel, message=403)
 		server.channels[channel].try_join(key, connection)
-		join_msg = IRCMessage("JOIN " + channel)
-		join_msg.source = server.host
-		connection.send_message(join_msg)
-		connection.channels.append(server.channels[channel])
 IRCServer.message_handlers['JOIN'] = __join
 
 def __part(server, connection, message):
@@ -335,9 +385,7 @@ def __part(server, connection, message):
 	for channel in channels:
 		if channel not in server.channels:
 			raise IRCException(channel, message=403)
-		chan = server.channels[channel]
-		chan.try_part(message, connection)
-		connection.channels.remove(chan)
+		server.channels[channel].try_part(message, connection)
 IRCServer.message_handlers['PART'] = __part
 
 def __topic(server, connection, message):
