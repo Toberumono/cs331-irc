@@ -57,7 +57,7 @@ def receiveMessage(display, ssock, nickname):
             #Get message from server here
             message = ""
             while message == "":
-                message = sharedMethods.getSocketResponse(ssock, timeout=-1)
+                message = sharedMethods.getSocketResponse(ssock, timeout=-1, buffersize=1)
                 
             #Process message
             processMsgRecvd(message, ssock, nickname)
