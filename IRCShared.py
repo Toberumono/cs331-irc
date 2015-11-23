@@ -32,6 +32,10 @@ errors = {
 	482 : ('ERR_CHANOPRIVSNEEDED', '{0} :You\'re not channel operator')
 }
 replies = {
+	  1 : ('RPL_WELCOME', 'Welcome to our IRC server.  It\'s a class project.  Please forgive us, {0}'),
+	  2 : ('RPL_YOURHOST', 'Your host is {0}, running version {1}'),
+	  3 : ('RPL_CREATED', 'This server was created yesterday, or the day before that.  We don\'t really know.'),
+	  4 : ('RPL_MYINFO', '{0} {1} {2} {3}'),
 	331 : ('RPL_NOTOPIC', '{0} :No topic is set'),
 	332 : ('RPL_TOPIC', '{0} :{1}')
 }

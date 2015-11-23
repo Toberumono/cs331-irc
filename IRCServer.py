@@ -12,7 +12,9 @@ class IRCServer(Server):
 		super().__init__(port=port, host=host, verbosity=verbosity, listen_timeout=listen_timeout,
 			socket_timeout=socket_timeout, decoder=decoder, encoder=encoder, socket_thread=IRCServer.server_thread,
 			force_empty_host=True)
+		self.version = -1
 		self.channels = IRCChannelDict()
+		self.modes = {'user' : 'aiwroOs', 'channel' : 'OovaimnqpsrtklbeI'}
 		self.users = IRCUserDict()
 		self.locks = {'connections' : threading.RLock(), 'users' : threading.RLock(), 'channels' : threading.RLock()}
 		self.connections = {}
@@ -29,6 +31,11 @@ class IRCServer(Server):
 				with self.locks['connections']:
 					self.connections[connection.name] = connection
 				self.users[connection.name] = connection
+		with connection.lock:
+			self.send_reply(connection, 1, connection.name)
+			self.send_reply(connection, 2, self.host, self.version)
+			self.send_reply(connection, 3)
+			self.send_reply(connection, 4, self.host, self.version, self.modes['user'], self.modes['channel'])
 
 	def deregister_user(self, connection):
 		with self.locks['connections']:
@@ -105,6 +112,8 @@ class IRCServer(Server):
 		connection.send_message(IRCMessage(reply, server=self))
 
 	def send_reply(self, connection, reply, *args):
+		if reply in replies:
+			reply = replies[reply][1]
 		reply = ":" + self.host + " " + reply.format(*args)
 		connection.send_message(IRCMessage(reply, server=self))
 
