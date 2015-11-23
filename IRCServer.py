@@ -316,7 +316,7 @@ def __join(server, connection, message):
 	keys = message.params[1].split(',') if len(message.params) > 1 else []
 	for channel, key in itertools.zip_longest(channels, keys, fillvalue=None):
 		if channel not in server.channels:
-			server.channels[channel] = IRCChannel(channel, server)
+			server.channels[channel] = IRCChannel(name=channel, server=server, key=key)
 			server.connections[channel] = server.channels[channel]
 			#raise IRCException(channel, message=403)
 		server.channels[channel].try_join(key, connection)
