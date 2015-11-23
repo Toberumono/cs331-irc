@@ -68,10 +68,10 @@ NOTE: The timeout resets after each read, so it is inadvisable to use this funct
 NOTE: The input is run through decoder prior to being passed to termination_test.
 This function will timeout if there is no data available after the given timeout time.
 '''
-def getSocketResponse(sock, buffersize=default['buffersize'], timeout=default['timeout'], decoder=decoder, termination_test=lambda x: x.endswith("\r") or x.endswith("\n")):
+def getSocketResponse(sock, buffersize=default['buffersize'], timeout=default['timeout'], decoder=decoder, termination_test=lambda x: x.endswith("\n")):
 	output = ""
 	while not termination_test(output):
-		data = timeoutRecv(sock=sock, buffersize=buffersize, timeout=timeout)
+		data = timeoutRecv(sock=sock, buffersize=1, timeout=timeout)
 		if not len(data):
 			break
 		output += decoder(data)
